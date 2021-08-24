@@ -1,0 +1,307 @@
+				CORRECTION - TESTS ET EXPLICATIONS - Webserv 1.0 Ubuntu
+
+
+I. Tests de load / stress tests (tester.conf)
+
+Pour les tests de load / les stress tests du serveur web, utiliser le testeur de 42 à la racine du repository, en lançant le serveur avec
+le fichier de configuration config/tester.conf.
+
+>>>> TESTEUR 42
+
+> COMMANDES :
+	- ./webserv config/tester.conf
+	- ./ubuntu_tester http://127.0.0.1:8005
+
+NOTES :
+	- La configuration minimale avec laquelle le testeur fonctionne de manière stable est : 3 CPUs ; 6309 Mo RAM. Avec moins de puissance, le testeur
+	  peut crash au dernier test, ou prend beaucoup trop de temps (de telle sorte que le serveur ne complète jamais ou bounce certains clients qui
+	  mettent plus de 20 minutes à envoyer une requête).
+
+
+
+II. Tests de fonctionnalités (default.conf)
+
+Installer php-cgi pour les tests utilisant ce cgi : sudo apt-get install php-cgi.
+
+
+
+>>>> PARSING FICHIER DE CONFIGURATION CORRECT
+
+> COMMANDES :
+	- ./webserv config/default.conf
+
+NOTES :
+	- Le parsing d'un fichier de configuration correct se visualise dans les messages de logs au lancement du serveur.
+	- Les options possibles dans les blocs "server" sont :
+			> listen			(port d'écoute)
+			> host				(interface réseau)
+			> server_name		(virtual host)
+			> root				(server global root)
+			> error				(custom error pages)
+
+	- Les options possibles dans les blocs "location" sont :
+			> root						(redéfinit la racine de cette route indépendamment de la racine globale)
+			> methods					(les méthodes HTTP acceptées pour cette route)
+			> index						(le fichier d'index à rechercher)
+			> autoindex					(activation ou non de l'autoindex)
+			> auth_basic				(activation ou non de l'authentification)
+			> auth_basic_user_file		(le fichier contenant les credentials si l'authentification est activée, format : username:password, 1 par ligne)
+			> language					(le langage préféré pour cette route)
+			> client_max_body_size		(la taille maximale pour le corps des requêtes envoyées par le client)
+			> cgi_extension				(l'extension de fichier signalant la nécessité de transférer au CGI)
+			> cgi_bin					(le chemin de l'exécutable CGI)
+
+
+
+>>>> PARSING FICHIERS DE CONFIGURATION INCORRECTS
+
+> COMMANDES :
+	- ./webserv config/wrong.conf
+	- ./webserv config/null.conf
+	- ./webserv config/incomplete.conf
+	- ./webserv config/empty_block.conf
+	- ./webserv config/unknown_directive.conf
+
+NOTES :
+	- Toutes les lignes du fichier de configuration doivent se terminer par ";"
+	- Tous les serveurs ou virtualhosts doivent au minimum avoir une route "/" définissant les règles de la racine du serveur
+
+
+
+>>>> TEST RACINE ET ROUTES
+
+> COMMANDES :
+	- Dans un browser : http://127.0.0.1:8002/
+	- Dans un browser : http://127.0.0.1:8002/errorpages/
+	- Dans un browser : http://127.0.0.1:8002/reroot/
+
+NOTES :
+	- Dans ces trois cas de figure, l'autoindex est activé, on verra donc une liste de fichiers.
+	- Dans le premier cas de figure, on voit ce qui correspond au contenu du dossier ./www				(-> Server global root)
+	- Dans le second cas de figure, on voit ce qui correspond au contenu du dossier ./www/errorpages	(-> Server global root + location errorpages)
+	- Dans le troisième cas de figure, on voit ce qui correspond au contenu du dossier /etc/			(-> la racine a été redéfinie manuellement pour cette location vers /etc)
+
+
+
+>>>> TEST DES SERVERNAMES ET VIRTUALHOSTS
+
+> COMMANDES :
+	- Rajouter, dans le fichier /etc/hosts la ligne suivante : |127.0.0.1       localhost myserver default_server random| (pour des questions de DNS)
+	- Dans un browser : http://myserver:8002/
+	- Dans un browser : http://random:8002/
+	- Dans un browser : http://localhost:8002/
+
+NOTES :
+	- Dans les trois cas de figure, l'autoindex est activé, on verra donc une liste de fichiers.
+	- Lorsqu'on envoie une requête à "http://myserver:8002", cette requête est transmise au virtualhost "myserver". On obtient alors bien le contenu du dossier "/", car la racine de ce virtualhost est "/".
+	- Lorsqu'on envoie une requête à "http://random:8002", cette requête est transmise au virtualhost "random". On obtient alors bien le contenu du dossier "/etc", car la racine de ce virtualhost est "/etc".
+	- Lorsqu'on envoie une requête à "http://localhost:8002", cette requête ne correspond à aucun virtualhost connu. C'est default_server qui la traite donc, nous affichant le contenu de ./www, sa racine.
+
+
+
+>>>> TESTS DE MULTIPLES SERVEURS SUR DIFFERENTS PORTS
+
+> COMMANDES :
+	- Dans un browser : http://127.0.0.1:8001/
+
+NOTE :
+	- La présence de multiples serveurs sur différents ports est fonctionnelle.
+
+
+
+>>>> TESTS DE REDIRECTION POUR LES URLS DE DOSSIERS
+
+> COMMANDES :
+	- Par cURL : curl http://127.0.0.1:8002/errorpages -v
+
+NOTE :
+	- Comme NGINX, les URLs visant des dossiers mais ne se terminant pas par un "/" produisent un 301 vers le dossier se terminant par "/". Voir les logs.
+
+
+
+>>>> TESTS DE L'AUTOINDEX
+
+> COMMANDES :
+	- Dans un browser : http://127.0.0.1:8002/				(-> autoindex on, without index file)
+	- Dans un browser : http://127.0.0.1:8002/505			(-> autoindex on, with index file)
+	- Dans un browser : http://127.0.0.1:8002/site			(-> autoindex off, with index file)
+	- Dans un browser : http://127.0.0.1:8002/noindex		(-> autoindex off, without index file)
+
+NOTE :
+	- Premier cas :	autoindex activé, pas de fichier index			--> On affiche l'autoindex
+	- Second cas : autoindex activé, avec un fichier index			--> On affiche le fichier index
+	- Troisième cas : autoindex désactivé, avec un fichier index	--> On affiche le fichier index
+	- Quatrième cas : autoindex désactivé, pas de fichier index		--> On affiche un 404
+
+
+
+>>>> TESTS DES METHODES AUTORISÉES
+
+> COMMANDES :
+	- Par curl : curl -X GET http://127.0.0.1:8002/spanish/ -v
+	- Par curl : curl -X POST -d "hello" http://127.0.0.1:8002/spanish/ -v
+	- Par curl : curl -X PUT -d "hi" http://127.0.0.1:8002/spanish/test -v
+	- Par curl : curl -X POST -d "hey" http://127.0.0.1:8002/cgi/index.php -v
+
+NOTE :
+	- Premier cas : la méthode GET est autorisée dans la route /spanish. La requête est valide, réponse 200.
+	- Second cas : la méthode POST n'est pas autorisée dans la route /spanish. La requête est rejetée, réponse 405 HTTP Method not allowed.
+	- Troisième cas : la méthode PUT n'est pas autorisée dans la route /spanish. La requête est rejetée, réponse 405 HTTP Method not allowed.
+	- Quatrième cas : la méthode POST est autorisée dans la route /cgi. La requête est traitée (en faisant appel au CGI), code 200.
+
+
+
+>>>> TESTS CONTENU WEB STATIQUE ET PAGES D'ERREUR CUSTOMS
+
+> COMMANDES :
+	- Dans un browser : http://127.0.0.1:8002/site/index.html
+	- Dans un browser : http://127.0.0.1:8002/random.jpg
+
+NOTE :
+	- Dans le premier cas, la page "index.html" est bien servie, ainsi que les fichiers javascript et css qui y sont associés.
+	- Dans le second cas, une erreur 404 est renvoyée car le fichier "random.jpg" n'existe pas.
+	- La page d'erreur 404 chargée est une page custom, dont le path est indiqué dans le fichier de configuration.
+
+
+
+>>>> TESTS CGI ET CLIENT MAX BODY SIZE
+
+> COMMANDES :
+	- Par curl : curl -X POST -d "a=hi&b=hello" http://127.0.0.1:8002/cgi/index.php
+	- Par curl : curl -X POST -d "blablablablablablablabla" http://127.0.0.1:8002/cgi/index.php
+	- Par curl : curl http://127.0.0.1:8002/cgi/index.php?a=b&c=d&hello=correcteur
+
+NOTE :
+	- Premier cas : la requête est bien passée au CGI, et la réponse renvoie ce que le CGI retourne. Code 200.
+	- Second cas : le corps de la requête envoyée par le client est trop grand (limite de 15 pour la route /cgi). Retourne un code 413 Request Entity Too Large.
+	- Troisième cas : une query string est également passée au CGI.
+
+
+
+>>>> BASIC AUTHENTICATION TESTS
+
+> COMMANDES :
+	- Dans un browser : http://127.0.0.1:8002/private/
+
+NOTE :
+	- La première requête à cette URL retournera un 401 Unauthorized, et le browser affichera une fenêtre invitant à saisir des credentials.
+	- Le fichier contenant les credentials est : /www/private/.auth (défini dans la configuration).
+	- Le format du fichier est le suivant : username:password, 1 par ligne.
+	- Entrez des credentials non valides : un 401 sera de nouveau retourné.
+	- Essayez de fermer la boîte de dialogue vous invitant à saisir vos credentials : un 401 sera retourné.
+	- Entrez n'importe lesquels des 3 credentials valides du fichier, et vous serez autorisé à consulter l'autoindex de /private.
+	- Notons qu'essayer d'accéder directement au fichier /private/secrets/secrets.txt demande également une authentification, comme tous les sous-dossiers de /private,
+	  à moins qu'une route correspondant à l'un de ces sous-dossiers ne désactive explicitement l'authentification pour ce sous-dossier.
+
+
+
+>>>> MÉCANISME DE PROTECTION CONTRE LES REQUÊTES INCOMPLÈTES
+
+> COMMANDES :
+	- Par telnet : telnet 127.0.0.1 8002
+	- Entrer la requête suivante :
+
+GET / HTTP/1.1
+Host: 127.0.0.1
+Content-Length: 72
+
+aaaabbbbccccdddd
+
+NOTES :
+	- On remarqué ici que le Content-Length est plus long que le véritable contenu de la requête. Un mécanisme a été mis en place afin que ce type de requêtes ne charge pas à l'infini.
+	- Au bout de 20 minutes, on ferme la connexion d'un client qui n'a pas terminé de transmettre une requête incomplète (ce qui ne devrait jamais arriver)
+	- Le délai de 20 minutes est élevé, notamment par rapport à NGINX qui n'attend que 10 secondes. Nous avons défini un délai élevé pour permettre au dernier test du testeur 42 de s'effectuer
+	  correctement, car les volumes de données sont importants, et permettre le traitement complet des requêtes des workers. Dans un scénario de vie réelle, le serveur utiliserait probablement
+	  des threads pour répartir son load, et restreindrait la quantité de données qu'il accepte de recevoir : on pourrait alors tout à fait réduire le délai à 10 secondes, comme NGINX.
+	- Le délai d'attente peut être modifié facilement, dans la fonction "handleIncompleteRequests" du fichier "ConnexionManager.cpp", pour faciliter les tests.
+
+
+
+>>>> TESTS DE FICHIERS NON-ACCESSIBLES
+
+> COMMANDES :
+	- chmod -r www/unauthorized
+	- Dans un browser / via curl : http://127.0.0.1:8002/unauthorized
+
+NOTES :
+	- Les permissions de lecture du fichier "/unauthorized" sont retirées. Une erreur 403 Forbidden est donc retournée par le serveur lorsqu'on souhaite accéder au fichier.
+
+
+
+>>>> TESTS DE GESTION DES REQUÊTES MAL FORMÉES
+
+> COMMANDES :
+	- Via telnet, entrer les requêtes suivantes :
+
+GET / HTTP/1.3
+Host: 127.0.0.1
+
+GET / HTTP/1.1 bla
+Host: 127.0.0.1
+
+GET / HTTP/1.1
+
+LOL / HTTP/1.1
+Host: 127.0.0.1
+
+NOTES :
+	- Attention à bien prendre le saut de ligne après les requêtes, ou telnet n'enverra pas la requête.
+	- Dans le premier cas, un code 505 HTTP Method Not Supported est renvoyé.
+	- Dans le second cas, un code 400 Bad Request est renvoyé.
+	- Dans le troisième cas, un code 400 Bad Request est renvoyé.
+	- Dans le quatrième cas, un code 405 HTTP Method Not Allowed est renvoyé.
+
+
+
+>>>> TESTS MÉTHODE PUT
+
+> COMMANDES :
+	- Via curl : curl -X PUT -d $'content\non\nseveral\nlines' http://127.0.0.1:8002/uploads/test.txt -v
+	- Via curl : curl -X PUT -d "some new content" http://127.0.0.1:8002/uploads/test.txt -v
+	- Via curl : curl -X PUT -d "this shouldn't be allowed" http://127.0.0.1:8002/errorpages/test.txt -v
+	- Via curl : curl -X PUT -d "some content" http://127.0.0.1:8002/uploads/ -v
+	- Via curl : curl -X PUT -d "some content" http://127.0.0.1:8002/uploads/idontexist/test.txt -v
+
+
+NOTES :
+	- Dans le premier cas, la méthode PUT est autorisée pour la route /uploads. La requête est acceptée, le fichier est créé, et le serveur répond avec 201 Created.
+	- Dans le second cas, de même la méthode PUT est autorisée. Un fichier "test.txt" existe déjà : son contenu est remplacé et le serveur renvoie un code 204.
+	- Dans le troisième cas, la méthode PUT n'est pas autorisée pour la route errorpages. Une erreur 405 est retournée.
+	- Dans le quatrième cas, on essaie de "put" sur un dossier : une erreur 409 Conflict est renvoyée.
+	- Dans le cinquième cas, on essaie de "put" dans un dossier qui n'existe pas : une erreur 403 est renvoyée.
+
+
+
+>>>> TESTS MÉTHODE DELETE
+
+> COMMANDES :
+	- Via curl : curl -X DELETE http://127.0.0.1:8002/uploads/test.txt -v
+	- Via curl : curl -X DELETE http://127.0.0.1:8002/uploads/hehe.txt -v
+	- Via curl : curl -X DELETE http://127.0.0.1:8002/favicon.ico -v
+
+NOTES :
+	- Dans le premier cas, la méthode DELETE est autorisée. La requête est acceptée, le fichier test.txt est détruit, le serveur renvoie un code 204.
+	- Dans le second cas, on essaie de DELETE un fichier qui n'existe pas. Le serveur renvoie une erreur 404.
+	- Dans le troisième cas, on essaie de supprimer un fichier dans un chemin qui n'accepte pas la méthode DELETE. Une erreur 405 est retournée.
+
+
+
+>>>> LISTE DES HEADERS IMPLEMENTÉS
+			> Accept-Charset
+			> Accept-Language
+			> Allow
+			> Authorization
+			> Content-Language
+			> Content-Length
+			> Content-Location
+			> Content-Type
+			> Date
+			> Host
+			> Last-Modified
+			> Location
+			> Referrer
+			> Retry-After
+			> Server
+			> Transfer-Encoding
+			> User-Agent
+			> WWW-Authenticate
